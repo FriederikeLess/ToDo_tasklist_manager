@@ -1,0 +1,161 @@
+self.style.configure("OpenList.TFrame", background="white")
+self.style.configure("ListboxFrame.TFrame", background="#d9d9d9") (grey)
+
+self.style.configure(
+    "ToDoCheck.TCheckbutton", indicatorbackground="white"
+)
+
+Okay, alles klar. Dann werde ich mein Skript wohl ganz umstrukturieren müssen jetzt. Ich würde das gern mit deiner Hilfe tun.
+Also, bisher habe ich meine grafische Oberfläche so aufgebaut, dass ich ein root-Fenster habe das in der __init__ Methode meiner ToDoManagerGUI class so erstellt wird:
+class ToDoManagerGUI:
+    def __init__(self, root: Tk) -> None:
+        self.root = root
+        self.root.title("ToDo List Manager")
+        self.root.geometry("800x400")
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+In diesem root-Fenster habe ich dann ein Frame, welches die Buttons für "Add User" und "Delete User" enthält. 
+Das alles wird ebenfalls in der __init__ Methode definiert und zwar so:
+self.add_delete_user_buttons_frame = ttk.Frame(self.root)
+        self.add_delete_user_buttons_frame.grid(row=0, column=0, sticky=E)
+        self.add_user_button = Button(
+            self.add_delete_user_buttons_frame,
+            text="Add User",
+            width=10,
+            command=self.add_user,
+        )
+        self.add_user_button.grid(row=0, column=0, pady=2.5, padx=(2, 1))
+        self.delete_user_button = Button(
+            self.add_delete_user_buttons_frame,
+            text="Delete User",
+            width=10,
+            command=self.delete_user,
+        )
+        self.delete_user_button.grid(row=0, column=1, pady=2.5, padx=(1, 2))
+
+Für jeden User soll ein separater Tab in einem Notebook erstellt werden und dieses Notebook ist so definiert:
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.grid(row=1, column=0, sticky=(N, E, S, W), padx=5)
+
+Wenn man die App das erste Mal startet und noch keine User vorhanden sind, gibt es nur einen "general_user". Diesen brauche ich, um die Datenbank, wo alles gespeichert ist, so aufzubauen, wie sie jetzt ist. 
+Darum wird beim aller ersten Start der App ein Tab angezeigt, welches nach dem erstellen des ersten Users dann wegfällt. Dieses initiale Tab ist so definiert:
+def create_general_user_tab(self):
+        general_user_tab = ttk.Frame(self.notebook)
+        self.notebook.add(general_user_tab, text="Create first user")
+        general_user_tab.rowconfigure(0, weight=1)
+        general_user_tab.columnconfigure(0, weight=1)
+        create_first_user_button = Button(
+            general_user_tab,
+            text="Welcome to the ToDo Tasks List Manager!\nPlease click on this text field to create a first user to start managing your ToDo tasks.",
+            command=self.add_first_user,
+        )
+        create_first_user_button.grid(row=0, column=0, padx=5, pady=5)
+
+Wenn dann ein richtiger User erstellt wurde, wird das Tab für diesen User mit der folgendenen Methode erstellt:
+def create_normal_user_tabs(self, user_name):
+        user_tab = ttk.Frame(self.notebook)
+        self.notebook.add(user_tab, text=user_name)
+        user_tab.columnconfigure(1, weight=1)
+        user_tab.rowconfigure(0, weight=1)
+        button_frame = ttk.Frame(
+            user_tab, padding=10, width=150
+        ) 
+        button_frame.grid(column=0, row=0, sticky=(N, E, S, W))
+        button_frame.columnconfigure(0, weight=1)
+        open_list_button = Button(
+            button_frame,
+            text="Open ToDo List",
+            width=22,
+            command=lambda: self.list_selection_window(
+                "open", self.curr_sele_user_name
+            ),
+        )
+        open_list_button.grid(pady=5, padx=5)
+        create_new_list_button = Button(
+            button_frame,
+            text="Create new ToDo List",
+            width=22,
+            command=self.create_new_todo_list,
+        )
+        create_new_list_button.grid(pady=5, padx=5)
+        remove_list_button = Button(
+            button_frame,
+            text="Remove ToDo List",
+            width=22,
+            command=lambda: self.list_selection_window(
+                "remove", self.curr_sele_user_name
+            ),
+        )
+        remove_list_button.grid(pady=5, padx=5)
+        modify_existing_list_button = Button(
+            button_frame,
+            text="Modify ToDo List",
+            width=22,
+            command=lambda: self.list_selection_window(
+                "modify", self.curr_sele_user_name
+            ),
+        )
+        modify_existing_list_button.grid(pady=5, padx=5)
+        show_all_tasks_button = Button(
+            button_frame,
+            text="Show all ToDo Tasks",
+            width=22,
+            command=self.show_all_tasks,
+        )
+        show_all_tasks_button.grid(pady=5, padx=5)
+        add_task_button = Button(button_frame, text="Add new Task", width=22)
+        add_task_button.grid(pady=5, padx=5)
+        remove_task_button = Button(button_frame, text="Remove Task", width=22)
+        remove_task_button.grid(pady=5, padx=5)
+        display_frame = ttk.Frame(user_tab, padding=10)
+        display_frame.grid(column=1, row=0, sticky=(N, S, E, W))
+        display_frame.columnconfigure(0, weight=1)
+        display_listbox = Listbox(display_frame, height=15)
+        display_listbox.grid(row=0, column=0, sticky=(N, E, S, W))
+        scrollbar = Scrollbar(
+            display_frame,
+            orient=VERTICAL,
+            command=display_listbox.yview,
+        )
+        scrollbar.grid(row=0, column=1, sticky=(N, S))
+        display_listbox.configure(yscrollcommand=scrollbar.set)
+        self.user_tabs[user_name] = {
+            "listbox": display_listbox,
+            "frame": display_frame,
+        }
+
+    def refresh_tabs(self):
+        for tab in self.notebook.tabs():
+            self.notebook.forget(tab)
+        self.existing_users = self.db.get_existing_users()
+        if (
+            len(self.existing_users) == 1
+            and "general_user" in self.existing_users
+        ):
+            self.create_general_user_tab()
+        else:
+            for user_name in self.existing_users[1:]:
+                self.create_normal_user_tabs(user_name)
+
+Was in der App angezeigt wird, wenn sie gestartet wird, wird in der __init__ Methode so geregelt:
+        if not "general_user" in self.existing_users:
+            print("Error! general_user is missing. Please check the database")
+        elif len(self.existing_users) == 1:
+            self.create_general_user_tab()
+            self.root.update_idletasks()
+        else:
+            for user_name in self.existing_users[1:]:
+                self.create_normal_user_tabs(user_name)
+
+Es soll also geguckt werden, ob es neben dem generel_user noch andere User in der Datenbank gibt und dementsprechend die Tabs erstell werden, die im Dictionary "self.user_tabs={}",
+welches auch in der __init__ Methode initialisiert wird, gespeichert werden.
+
+So ist es also bisher.
+Ich möchte diese Ansicht mit den Tabs gern beibehalten. Wichtig ist dabei, dass die Tabs unabhängig voneinander sind. Also, wenn ich in einem Tab gerade eine ToDo Liste zeige,
+soll sie aber nicht in allen anderen Tabs auch angezeigt werden, und so weiter.
+Das button_frame, welches in den normalen User Tabs erstellt wird, wird ja auch nie verändert. Das kann auch weiterhin so bleiben.
+Was geändert werden muss wäre also das display_frame, welches ständig etwas anderes anzeigen müsste, je nachdem, was man gerade tun möchte.
+Für jede Anzeige brauche ich ja nun ein eigenes Frame, das mit grid_remove() und grid() ein- und ausgblendet werden kann.
+Wo kreiere ich diese Frames jetzt am besten; in welcher Methode? In der __init__ Methode? Woanders, aber speichere sie in einem Dictionary in der __init__ Methode?
+Wie sichere ich die Unabhängigkeit der Tabs zueinander? Wie gehe ich das ganze jetzt am besten an?
